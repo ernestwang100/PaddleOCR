@@ -94,6 +94,12 @@ for x in merged_x:
 NODE_IMAGE = "visualized_nodes_IMG_6620.jpeg"
 cv2.imwrite(NODE_IMAGE, img_nodes)
 
+# Save merged vertical x positions to a new JSON file for use in table OCR
+MERGED_X_JSON = "merged_vertical_lines_IMG_6620.json"
+with open(MERGED_X_JSON, "w") as f:
+    json.dump(merged_x, f, indent=2)
+print(f"Merged vertical x positions saved as {MERGED_X_JSON}")
+
 # Print detected distances for reference
 print("Vertical line positions (x):", verti_lst)
 print("Horizontal line positions (y):", horiz_lst)
