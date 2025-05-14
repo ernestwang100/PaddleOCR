@@ -67,6 +67,14 @@ for x in verti_lst:
             1,
             cv2.LINE_AA,
         )
+# Draw green circles for unique x positions (vertical lines), skipping those too close to the previous
+GREEN_THRESHOLD = 20  # Minimum distance between green points
+last_x = None
+for x in verti_lst:
+    if last_x is None or abs(x - last_x) > GREEN_THRESHOLD:
+        # Draw a green circle at the top of each unique vertical line
+        cv2.circle(img_nodes, (x, horiz_lst[0]), 12, (0, 255, 0), 2)
+        last_x = x
 # Save the node visualization image
 NODE_IMAGE = "visualized_nodes_IMG_6620.jpeg"
 cv2.imwrite(NODE_IMAGE, img_nodes)
