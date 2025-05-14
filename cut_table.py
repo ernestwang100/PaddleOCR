@@ -4,6 +4,7 @@ from paddleocr import PaddleOCR
 import openpyxl
 import os
 import re
+import csv
 
 # 初始化OCR
 ocr = PaddleOCR(use_angle_cls=True, lang="japan")  # 你可以换成'ch'或'en'试试
@@ -78,3 +79,11 @@ for img_file in image_files:
     excel_file = f"output_{os.path.splitext(img_file)[0]}.xlsx"
     wb.save(excel_file)
     print(f"Saved results to {excel_file}")
+
+    # 保存CSV文件
+    csv_file = f"output_{os.path.splitext(img_file)[0]}.csv"
+    with open(csv_file, "w", newline="", encoding="utf-8-sig") as f:
+        writer = csv.writer(f)
+        for row in ws.iter_rows(values_only=True):
+            writer.writerow(row)
+    print(f"Saved results to {csv_file}")

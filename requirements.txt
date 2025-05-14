@@ -1,3 +1,7 @@
+opencv-python
+numpy
 paddleocr
+paddlepaddle==2.4.2 ; platform_system != 'Darwin'
 openpyxl
-paddlepaddle==2.4.2 ; platform_system != 'Darwin' 
+Pillow
+beautifulsoup4 
