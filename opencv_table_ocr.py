@@ -49,9 +49,19 @@ for image_file in os.listdir(image_dir):
     image_path = os.path.join(image_dir, image_file)
     img = cv2.imread(image_path, 0)
     img_color = cv2.imread(image_path)
+
+    # 1. 自動對比增強
+    img_eq = cv2.equalizeHist(img)
+
+    # 2. 二值化（可嘗試不同參數）
     img_bin = 255 - cv2.adaptiveThreshold(
-        img, 255, cv2.ADAPTIVE_THRESH_MEAN_C, cv2.THRESH_BINARY, 15, -2
+        img_eq, 255, cv2.ADAPTIVE_THRESH_MEAN_C, cv2.THRESH_BINARY, 15, -10
     )
+
+    # 3. 膨脹/腐蝕（可嘗試不同kernel/次數）
+    kernel = np.ones((2, 2), np.uint8)
+    img_bin = cv2.dilate(img_bin, kernel, iterations=1)
+    img_bin = cv2.erode(img_bin, kernel, iterations=1)
 
     # Detect vertical lines
     vertical_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (1, img.shape[0] // 30))
@@ -69,8 +79,16 @@ for image_file in os.listdir(image_dir):
     table_mask = cv2.addWeighted(vertical_lines, 0.5, horizontal_lines, 0.5, 0.0)
     contours, _ = cv2.findContours(table_mask, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
 
-    # Find all cell boxes
-    boxes = [cv2.boundingRect(c) for c in contours if cv2.contourArea(c) > 1000]
+    # Enhanced contour filtering
+    boxes = []
+    for c in contours:
+        area = cv2.contourArea(c)
+        if area < 500 or area > 50000:
+            continue
+        x, y, w, h = cv2.boundingRect(c)
+        aspect = w / h if h > 0 else 0
+        if 0.5 < aspect < 10:  # 根據表格格子形狀調整
+            boxes.append((x, y, w, h))
     boxes = sorted(boxes, key=lambda b: (b[1], b[0]))  # sort by y, then x
 
     # Debug: save image with all detected boxes
