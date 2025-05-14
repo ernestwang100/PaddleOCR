@@ -4,4 +4,7 @@ paddleocr
 paddlepaddle==2.4.2 ; platform_system != 'Darwin'
 openpyxl
 Pillow
-beautifulsoup4 
+beautifulsoup4
+python-dotenv
+requests
+pandas 
