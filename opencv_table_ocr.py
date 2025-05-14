@@ -11,6 +11,8 @@ os.makedirs(output_dir, exist_ok=True)
 
 ocr = PaddleOCR(use_angle_cls=True, lang="en")
 
+NUM_COLS = 8  # 你表格的欄數
+
 for image_file in os.listdir(image_dir):
     if not image_file.lower().endswith((".jpg", ".jpeg", ".png")):
         continue
@@ -21,11 +23,6 @@ for image_file in os.listdir(image_dir):
         img, 255, cv2.ADAPTIVE_THRESH_MEAN_C, cv2.THRESH_BINARY, 15, -2
     )
 
-    # Detect vertical lines
-    vertical_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (1, img.shape[0] // 30))
-    vertical_lines = cv2.erode(img_bin, vertical_kernel, iterations=3)
-    vertical_lines = cv2.dilate(vertical_lines, vertical_kernel, iterations=3)
-
     # Detect horizontal lines
     horizontal_kernel = cv2.getStructuringElement(
         cv2.MORPH_RECT, (img.shape[1] // 30, 1)
@@ -33,49 +30,38 @@ for image_file in os.listdir(image_dir):
     horizontal_lines = cv2.erode(img_bin, horizontal_kernel, iterations=3)
     horizontal_lines = cv2.dilate(horizontal_lines, horizontal_kernel, iterations=3)
 
-    # Combine lines
-    table_mask = cv2.addWeighted(vertical_lines, 0.5, horizontal_lines, 0.5, 0.0)
-    contours, _ = cv2.findContours(table_mask, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+    # Find horizontal line positions
+    lines = cv2.HoughLinesP(
+        horizontal_lines,
+        1,
+        np.pi / 180,
+        threshold=100,
+        minLineLength=img.shape[1] // 2,
+        maxLineGap=20,
+    )
+    y_list = []
+    if lines is not None:
+        for line in lines:
+            x1, y1, x2, y2 = line[0]
+            y_list.append(y1)
+    y_list = sorted(list(set(y_list)))
+    # 過濾掉太接近的線
+    filtered_y = []
+    for y in y_list:
+        if not filtered_y or abs(y - filtered_y[-1]) > 10:
+            filtered_y.append(y)
 
-    # Find all cell boxes
-    boxes = [cv2.boundingRect(c) for c in contours if cv2.contourArea(c) > 1000]
-    boxes = sorted(boxes, key=lambda b: (b[1], b[0]))  # sort by y, then x
-
-    # Debug: draw detected boxes on the image
-    debug_img = img_color.copy()
-    for x, y, w, h in boxes:
-        cv2.rectangle(debug_img, (x, y), (x + w, y + h), (0, 0, 255), 2)
-    cv2.imwrite(f"debug_boxes_{image_file}.jpg", debug_img)
-    print(f"Saved debug image with boxes as debug_boxes_{image_file}.jpg")
-
-    # OCR the whole image for debug
-    print(f"\n--- OCR result for the whole image: {image_file} ---")
-    full_img_result = ocr.ocr(image_path, cls=True)
-    for line in full_img_result:
-        print(line)
-    print(f"--- End of OCR result for {image_file} ---\n")
-
-    # Group boxes into rows
-    rows = []
-    current_row = []
-    last_y = -100
-    for box in boxes:
-        x, y, w, h = box
-        if abs(y - last_y) > 10 and current_row:
-            rows.append(sorted(current_row, key=lambda b: b[0]))
-            current_row = []
-        current_row.append(box)
-        last_y = y
-    if current_row:
-        rows.append(sorted(current_row, key=lambda b: b[0]))
-
-    # OCR for each cell (robust version)
+    # 以橫線分割行，再等分欄
     table = []
-    for row in rows:
+    for i in range(len(filtered_y) - 1):
+        y1, y2 = filtered_y[i], filtered_y[i + 1]
         row_cells = []
-        for box in row:
-            x, y, w, h = box
-            cell_img = img_color[y : y + h, x : x + w]
+        row_height = y2 - y1
+        col_width = img.shape[1] // NUM_COLS
+        for c in range(NUM_COLS):
+            x1 = c * col_width
+            x2 = (c + 1) * col_width if c < NUM_COLS - 1 else img.shape[1]
+            cell_img = img_color[y1:y2, x1:x2]
             if cell_img is None or cell_img.size == 0:
                 row_cells.append("")
                 continue
