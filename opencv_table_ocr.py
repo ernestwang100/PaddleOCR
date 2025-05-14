@@ -35,6 +35,14 @@ def save_debug_cells_image(img_color, filtered_y, num_cols, image_file):
     print(f"Saved debug cell boxes image as debug_cells_{image_file}.jpg")
 
 
+def save_debug_boxes_image(img_color, boxes, image_file):
+    debug_img = img_color.copy()
+    for x, y, w, h in boxes:
+        cv2.rectangle(debug_img, (x, y), (x + w, y + h), (0, 0, 255), 2)
+    cv2.imwrite(f"debug_boxes_{image_file}.jpg", debug_img)
+    print(f"Saved debug boxes image as debug_boxes_{image_file}.jpg")
+
+
 for image_file in os.listdir(image_dir):
     if not image_file.lower().endswith((".jpg", ".jpeg", ".png")):
         continue
@@ -45,6 +53,11 @@ for image_file in os.listdir(image_dir):
         img, 255, cv2.ADAPTIVE_THRESH_MEAN_C, cv2.THRESH_BINARY, 15, -2
     )
 
+    # Detect vertical lines
+    vertical_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (1, img.shape[0] // 30))
+    vertical_lines = cv2.erode(img_bin, vertical_kernel, iterations=3)
+    vertical_lines = cv2.dilate(vertical_lines, vertical_kernel, iterations=3)
+
     # Detect horizontal lines
     horizontal_kernel = cv2.getStructuringElement(
         cv2.MORPH_RECT, (img.shape[1] // 30, 1)
@@ -52,49 +65,38 @@ for image_file in os.listdir(image_dir):
     horizontal_lines = cv2.erode(img_bin, horizontal_kernel, iterations=3)
     horizontal_lines = cv2.dilate(horizontal_lines, horizontal_kernel, iterations=3)
 
-    # Find horizontal line positions
-    lines = cv2.HoughLinesP(
-        horizontal_lines,
-        1,
-        np.pi / 180,
-        threshold=100,
-        minLineLength=img.shape[1] // 2,
-        maxLineGap=20,
-    )
-    y_list = []
-    if lines is not None:
-        for line in lines:
-            x1, y1, x2, y2 = line[0]
-            y_list.append(y1)
-    y_list = sorted(list(set(y_list)))
-    # 過濾掉太接近的線
-    filtered_y = []
-    for y in y_list:
-        if not filtered_y or abs(y - filtered_y[-1]) > 10:
-            filtered_y.append(y)
+    # Combine lines
+    table_mask = cv2.addWeighted(vertical_lines, 0.5, horizontal_lines, 0.5, 0.0)
+    contours, _ = cv2.findContours(table_mask, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
 
-    # Debug: save image with detected row lines
-    save_debug_rows_image(img_color, filtered_y, image_file)
+    # Find all cell boxes
+    boxes = [cv2.boundingRect(c) for c in contours if cv2.contourArea(c) > 1000]
+    boxes = sorted(boxes, key=lambda b: (b[1], b[0]))  # sort by y, then x
 
-    # Debug: save image with all cell boxes
-    save_debug_cells_image(img_color, filtered_y, NUM_COLS, image_file)
+    # Debug: save image with all detected boxes
+    save_debug_boxes_image(img_color, boxes, image_file)
 
-    # 以橫線分割行，再等分欄
+    # Group boxes into rows by y coordinate
+    rows = []
+    current_row = []
+    last_y = -100
+    for box in boxes:
+        x, y, w, h = box
+        if abs(y - last_y) > 10 and current_row:
+            rows.append(sorted(current_row, key=lambda b: b[0]))
+            current_row = []
+        current_row.append(box)
+        last_y = y
+    if current_row:
+        rows.append(sorted(current_row, key=lambda b: b[0]))
+
+    # OCR for each cell
     table = []
-    for i in range(len(filtered_y) - 1):
-        y1, y2 = filtered_y[i], filtered_y[i + 1]
+    for row in rows:
         row_cells = []
-        row_height = y2 - y1
-        col_width = img.shape[1] // NUM_COLS
-        for c in range(NUM_COLS):
-            x1 = c * col_width
-            x2 = (c + 1) * col_width if c < NUM_COLS - 1 else img.shape[1]
-            cell_img = img_color[y1:y2, x1:x2]
-            # Debug: save each cell image
-            cell_debug_path = os.path.join(
-                output_dir, f"debug_cell_{image_file}_row{i}_col{c}.jpg"
-            )
-            cv2.imwrite(cell_debug_path, cell_img)
+        for box in row:
+            x, y, w, h = box
+            cell_img = img_color[y : y + h, x : x + w]
             if cell_img is None or cell_img.size == 0:
                 row_cells.append("")
                 continue
