@@ -67,14 +67,29 @@ for x in verti_lst:
             1,
             cv2.LINE_AA,
         )
-# Draw green circles for unique x positions (vertical lines), skipping those too close to the previous
-GREEN_THRESHOLD = 20  # Minimum distance between green points
-last_x = None
+# Only keep the first x in each group where the distance to the previous x is greater than threshold
+MERGE_THRESHOLD = 100
+merged_x = []
+prev_x = None
 for x in verti_lst:
-    if last_x is None or abs(x - last_x) > GREEN_THRESHOLD:
-        # Draw a green circle at the top of each unique vertical line
-        cv2.circle(img_nodes, (x, horiz_lst[0]), 12, (0, 255, 0), 2)
-        last_x = x
+    if prev_x is None or abs(x - prev_x) > MERGE_THRESHOLD:
+        merged_x.append(x)
+    prev_x = x
+
+# Draw green circles only for merged x positions and label them with their x coordinate
+for x in merged_x:
+    cv2.circle(img_nodes, (x, horiz_lst[0]), 12, (0, 255, 0), 2)
+    cv2.putText(
+        img_nodes,
+        str(x),
+        (x - 20, horiz_lst[0] - 20),
+        cv2.FONT_HERSHEY_SIMPLEX,
+        0.7,
+        (0, 128, 0),
+        2,
+        cv2.LINE_AA,
+    )
+
 # Save the node visualization image
 NODE_IMAGE = "visualized_nodes_IMG_6620.jpeg"
 cv2.imwrite(NODE_IMAGE, img_nodes)
