@@ -23,7 +23,8 @@ with open("merged_vertical_lines_IMG_6620.json", "r") as f:
     merged_x = json.load(f)
 
 # Only keep these columns (1,2,5,6,7) - 0-based index in merged_x
-TARGET_COLUMNS = [0, 1, 4, 5, 6]
+# TARGET_COLUMNS = [0, 1, 4, 5, 6]
+TARGET_COLUMNS = list(range(len(merged_x) - 1))
 
 
 def azure_ocr(image_path):
@@ -77,7 +78,7 @@ def extract_table_by_bbox(ocr_result, merged_x, target_columns):
     # Group words by y (rows) using a threshold
     words = sorted(words, key=lambda w: w["y"])
     rows = []
-    row_threshold = 20
+    row_threshold = 50
     current_row = []
     last_y = None
     for w in words:
