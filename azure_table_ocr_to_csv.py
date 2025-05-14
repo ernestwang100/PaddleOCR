@@ -19,8 +19,15 @@ images = [
     if f.lower().endswith(".jpeg")
 ]
 
+# Dynamically determine the merged_x JSON filename based on the first image
+if not images:
+    raise FileNotFoundError("No .jpeg images found in the 'pictures' directory.")
+first_image = os.path.basename(sorted(images)[0])
+base_name = os.path.splitext(first_image)[0]
+MERGED_X_JSON = f"merged_vertical_lines_{base_name}.json"
+
 # Load merged vertical x positions (column boundaries)
-with open("merged_vertical_lines_IMG_6620.json", "r") as f:
+with open(MERGED_X_JSON, "r") as f:
     merged_x = json.load(f)
 
 # Use all columns

@@ -3,12 +3,22 @@ import numpy as np
 import os
 import json
 
-# Input image path
-IMAGE_PATH = "pictures/IMG_6620.jpeg"  # You can change this to any table image
-# Output image with detected lines
-OUTPUT_IMAGE = "detected_lines_IMG_6620.jpeg"
-# Output file for line positions
-OUTPUT_LINES = "table_lines_IMG_6620.json"
+# Dynamically get the first image in the 'pictures' directory
+pictures_dir = "pictures"
+image_files = [
+    f for f in os.listdir(pictures_dir) if f.lower().endswith((".jpeg", ".jpg", ".png"))
+]
+if not image_files:
+    raise FileNotFoundError("No image files found in the 'pictures' directory.")
+first_image = sorted(image_files)[0]
+IMAGE_PATH = os.path.join(pictures_dir, first_image)
+
+# Dynamic output filenames based on input image name (without extension)
+base_name = os.path.splitext(first_image)[0]
+OUTPUT_IMAGE = f"detected_lines_{base_name}.jpeg"
+# OUTPUT_LINES will not be saved as JSON, just printed
+# MERGED_X_JSON will be dynamic
+MERGED_X_JSON = f"merged_vertical_lines_{base_name}.json"
 
 # Read the image
 img = cv2.imread(IMAGE_PATH)
@@ -43,10 +53,10 @@ horiz_lst = [int(y) for y in horiz_lst]
 # Save the image with detected lines
 cv2.imwrite(OUTPUT_IMAGE, img)
 
-# Save the line positions to a JSON file
+# Print the line positions instead of saving to JSON
 lines_info = {"vertical": verti_lst, "horizontal": horiz_lst}
-with open(OUTPUT_LINES, "w") as f:
-    json.dump(lines_info, f, indent=2)
+# print("Detected line positions:")
+# print(json.dumps(lines_info, indent=2))
 
 # --- Node visualization ---
 # Draw and label each intersection (node) on a copy of the image
@@ -91,18 +101,16 @@ for x in merged_x:
     )
 
 # Save the node visualization image
-NODE_IMAGE = "visualized_nodes_IMG_6620.jpeg"
+NODE_IMAGE = f"visualized_nodes_{base_name}.jpeg"
 cv2.imwrite(NODE_IMAGE, img_nodes)
 
 # Save merged vertical x positions to a new JSON file for use in table OCR
-MERGED_X_JSON = "merged_vertical_lines_IMG_6620.json"
 with open(MERGED_X_JSON, "w") as f:
     json.dump(merged_x, f, indent=2)
-print(f"Merged vertical x positions saved as {MERGED_X_JSON}")
+# print(f"Merged vertical x positions saved as {MERGED_X_JSON}")
 
 # Print detected distances for reference
-print("Vertical line positions (x):", verti_lst)
-print("Horizontal line positions (y):", horiz_lst)
+# print("Vertical line positions (x):", verti_lst)
+# print("Horizontal line positions (y):", horiz_lst)
 print(f"Detected lines image saved as {OUTPUT_IMAGE}")
-print(f"Line positions saved as {OUTPUT_LINES}")
 print(f"Node visualization saved as {NODE_IMAGE}")
