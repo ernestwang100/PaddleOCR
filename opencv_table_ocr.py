@@ -13,6 +13,28 @@ ocr = PaddleOCR(use_angle_cls=True, lang="en")
 
 NUM_COLS = 8  # 你表格的欄數
 
+
+def save_debug_rows_image(img_color, filtered_y, image_file):
+    debug_img = img_color.copy()
+    for y in filtered_y:
+        cv2.line(debug_img, (0, y), (img_color.shape[1], y), (0, 0, 255), 2)
+    cv2.imwrite(f"debug_rows_{image_file}.jpg", debug_img)
+    print(f"Saved debug row lines image as debug_rows_{image_file}.jpg")
+
+
+def save_debug_cells_image(img_color, filtered_y, num_cols, image_file):
+    debug_img = img_color.copy()
+    col_width = img_color.shape[1] // num_cols
+    for i in range(len(filtered_y) - 1):
+        y1, y2 = filtered_y[i], filtered_y[i + 1]
+        for c in range(num_cols):
+            x1 = c * col_width
+            x2 = (c + 1) * col_width if c < num_cols - 1 else img_color.shape[1]
+            cv2.rectangle(debug_img, (x1, y1), (x2, y2), (0, 0, 255), 2)
+    cv2.imwrite(f"debug_cells_{image_file}.jpg", debug_img)
+    print(f"Saved debug cell boxes image as debug_cells_{image_file}.jpg")
+
+
 for image_file in os.listdir(image_dir):
     if not image_file.lower().endswith((".jpg", ".jpeg", ".png")):
         continue
@@ -51,6 +73,12 @@ for image_file in os.listdir(image_dir):
         if not filtered_y or abs(y - filtered_y[-1]) > 10:
             filtered_y.append(y)
 
+    # Debug: save image with detected row lines
+    save_debug_rows_image(img_color, filtered_y, image_file)
+
+    # Debug: save image with all cell boxes
+    save_debug_cells_image(img_color, filtered_y, NUM_COLS, image_file)
+
     # 以橫線分割行，再等分欄
     table = []
     for i in range(len(filtered_y) - 1):
@@ -62,6 +90,11 @@ for image_file in os.listdir(image_dir):
             x1 = c * col_width
             x2 = (c + 1) * col_width if c < NUM_COLS - 1 else img.shape[1]
             cell_img = img_color[y1:y2, x1:x2]
+            # Debug: save each cell image
+            cell_debug_path = os.path.join(
+                output_dir, f"debug_cell_{image_file}_row{i}_col{c}.jpg"
+            )
+            cv2.imwrite(cell_debug_path, cell_img)
             if cell_img is None or cell_img.size == 0:
                 row_cells.append("")
                 continue
