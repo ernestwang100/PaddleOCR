@@ -3,6 +3,7 @@ import requests
 import pandas as pd
 from dotenv import load_dotenv
 import json
+import re
 
 # Load environment variables from .env file
 load_dotenv()
@@ -22,8 +23,7 @@ images = [
 with open("merged_vertical_lines_IMG_6620.json", "r") as f:
     merged_x = json.load(f)
 
-# Only keep these columns (1,2,5,6,7) - 0-based index in merged_x
-# TARGET_COLUMNS = [0, 1, 4, 5, 6]
+# Use all columns
 TARGET_COLUMNS = list(range(len(merged_x) - 1))
 
 
@@ -69,7 +69,6 @@ def extract_table_by_bbox(ocr_result, merged_x, target_columns):
     for read_result in ocr_result["analyzeResult"]["readResults"]:
         for line in read_result["lines"]:
             for word in line["words"]:
-                # boundingBox: [x1, y1, x2, y2, x3, y3, x4, y4]
                 xs = word["boundingBox"][0::2]
                 ys = word["boundingBox"][1::2]
                 x_center = int(sum(xs) / 4)
@@ -96,16 +95,25 @@ def extract_table_by_bbox(ocr_result, merged_x, target_columns):
         row_cells = ["" for _ in range(len(merged_x) - 1)]
         for w in row:
             col_idx = assign_word_to_column(w["x"], merged_x)
-            # Concatenate if multiple words in the same cell
             if row_cells[col_idx]:
                 row_cells[col_idx] += " " + w["text"]
             else:
                 row_cells[col_idx] = w["text"]
-        # Only keep target columns
         filtered_row = [
             row_cells[i] if i < len(row_cells) else "" for i in target_columns
         ]
         table.append(filtered_row)
+    return table
+
+
+def clean_non_name_columns(header, table):
+    """For columns whose header does not start with '名', keep only pure numbers (including decimal, negative, percent) in those columns."""
+    for col_idx, col_name in enumerate(header):
+        if not col_name.startswith("名"):
+            for row in table:
+                # Keep only numbers, decimal points, negative sign, and percent sign
+                match = re.findall(r"-?\d+(?:\.\d+)?%?", row[col_idx])
+                row[col_idx] = " ".join(match)
     return table
 
 
@@ -116,9 +124,33 @@ def save_csv(table, output_path):
 
 
 if __name__ == "__main__":
-    for img in images:
+    all_tables = []
+    header = None
+    leading_empty = 0
+    for idx, img in enumerate(images):
         ocr_result = azure_ocr(img)
         table = extract_table_by_bbox(ocr_result, merged_x, TARGET_COLUMNS)
-        output_csv = f"output_{os.path.basename(img).split('.')[0]}_bbox.csv"
-        save_csv(table, output_csv)
-        print(f"Saved: {output_csv}")
+        if idx == 0:
+            # Use the 2nd row as header
+            header = table[1]
+            # Count leading empty columns
+            leading_empty = 0
+            for cell in header:
+                if cell.strip() == "":
+                    leading_empty += 1
+                else:
+                    break
+            # Remove leading empty columns from header
+            header = header[leading_empty:]
+        # Remove leading empty columns from all rows
+        for i in range(len(table)):
+            table[i] = table[i][leading_empty:]
+        # Skip header rows for all but the first image
+        if idx == 0:
+            all_tables.extend(table)
+        else:
+            all_tables.extend(table[1:])  # skip first row (title/header)
+    # Clean non-name columns
+    all_tables = [header] + clean_non_name_columns(header, all_tables[2:])
+    save_csv(all_tables, "output_combined_bbox.csv")
+    print("Saved: output_combined_bbox.csv")
