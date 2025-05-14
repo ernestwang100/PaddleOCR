@@ -1,0 +1,19 @@
+# Debug images
+*.jpg
+*.jpeg
+*.png
+
+debug_*
+table_mask_*
+
+# Output files
+*.csv
+*.xlsx
+output_*
+
+# OCR/filtered tables
+filtered_tables/
+filtered_tables_ppstructure/
+
+# 原始圖片
+pictures/ 
